@@ -2,7 +2,7 @@
 
 **DISCLAIMER**: This has only been tested on Mac OS X. Adapting for Linux should be quite straightforward though.
 
-This is a wrapper tool for quickly seeing what SMB shares are avaible from your Synology (or SMB server), mount them and unmount them. I's a clear case of code as documentation, where I wrap and automate different commands involved in this just to only remember a couple of things.
+This is a wrapper tool for quickly seeing what SMB shares are avaible from your Synology (or SMB server), mount them and unmount them. It's a clear case of code as documentation, where I wrap and automate different commands involved in this just to only remember a couple of things.
 
 ## Some examples
 
