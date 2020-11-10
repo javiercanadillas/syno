@@ -11,7 +11,7 @@ Showing active configuration (Synology server, user, and configuration file):
 syno config
 ```
 
-Listing available shares:
+Listing available shares, if you put a description when you configured them in your NAS you'll get it here:
 ```bash
 syno shares
 ```
