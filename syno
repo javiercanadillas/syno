@@ -22,6 +22,7 @@ ALL=""
 PARAMS=()
 
 # Source credentials
+# shellcheck disable=SC1090
 . "${CREDS_FILEPATH}"
 
 main() {
@@ -35,7 +36,7 @@ get_mounted_shares() {
 
 check_mount() {
   local -r MOUNTED=$(get_mounted_shares | grep "${VOLUME}")
-  if [ ! -z "${MOUNTED}" ]; then
+  if [ -n "${MOUNTED}" ]; then
     echo "Volume \"${VOLUME}\" is already mounted."
     exit
   fi
