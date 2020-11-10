@@ -65,7 +65,7 @@ list_available_shares() {
 # If no argument is supplied, it fails
 arg_required() {
   if [[ ! "${2:-}" || "${2:0:1}" = '-' ]]; then
-    fatal "Option ${1} requires an argument."
+    echo "Option ${1} requires an argument."
   fi
 }
 
