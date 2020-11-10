@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+
+set -CeE
+set -o pipefail
+if [[ "${BASH_VERSINFO:-0}" -lt 4 ]]; then
+  cat <<EOF >&2
+WARNING: bash ${BASH_VERSION} does not support several modern safety features.
+This script was written with the latest POSIX standard in mind, and was only
+tested with modern shell standards. This script may not perform correctly in
+this environment.
+EOF
+  sleep 1
+else
+  set -u
+fi
+
+readonly SCRIPT_NAME="${0##*/}"
+
+CREDS_FILENAME="${CREDS_FILENAME:-syno_creds}"
+CREDS_FILEPATH="${CREDS_BASE_PATH:-${HOME}/.config/javiercm}/${CREDS_FILENAME}"
+ALL=""
+PARAMS=()
+
+# Source credentials
+. "${CREDS_FILEPATH}"
+
+main() {
+  parse_args "${@}"
+  parse_command "${PARAMS[*]}"
+}
+
+get_mounted_shares() {
+  mount -t smbfs | awk '{print $1}' | awk -F'/' '{print $(NF)}'
+}
+
+check_mount() {
+  local -r MOUNTED=$(get_mounted_shares | grep "${VOLUME}")
+  if [ ! -z "${MOUNTED}" ]; then
+    echo "Volume \"${VOLUME}\" is already mounted."
+    exit
+  fi
+}
+
+test_mount_point() {
+  if [ ! -d "${1}" ]; then
+    echo "Mount point ${MOUNT_POINT} does not exist. Create it first and try again."
+    exit 1
+  fi 
+}
+
+test_share() {
+
+  local -r SHARE_EXISTS=$(list_available_shares | awk '{print $1}' | grep "${VOLUME}")
+  if [ -z "${SHARE_EXISTS}" ]; then
+    echo "Error: \"${VOLUME}\" does not seem be shared."
+    exit 1
+  fi
+}
+
+list_available_shares() {
+  smbutil view //"${SYNO_USER}":"${SYNO_PW}"@"${SYNO_ID}"
+}
+
+# This function checks <command -option|--option argument>
+# If no argument is supplied, it fails
+arg_required() {
+  if [[ ! "${2:-}" || "${2:0:1}" = '-' ]]; then
+    fatal "Option ${1} requires an argument."
+  fi
+}
+
+parse_command() {
+  # shellcheck disable=SC2064
+  trap "$(shopt -p nocasematch)" RETURN
+  shopt -s nocasematch
+
+  case "${1}" in
+  mount)
+    if [ -z "${VOLUME}" ]; then
+      echo "Error: you must specify a volume using \"-v\""
+    else
+      readonly MOUNT_POINT="${BASE_DIR}"/"${VOLUME}"
+      check_mount "${1}"
+      test_share "${MOUNT_POINT}"
+      test_mount_point "${MOUNT_POINT}"
+      mount_smbfs //"${SYNO_USER}":"${SYNO_PW}"@"${SYNO_ID}"/"${VOLUME}" "${MOUNT_POINT}"
+    fi
+    ;;
+  umount | unmount)
+    if [ -z "${ALL}" ]; then
+      umount "${BASE_DIR}"/"${VOLUME}"
+    else
+      # Using process substitution here (see http://www.gnu.org/software/bash/manual/html_node/Process-Substitution.html#Process-Substitution)
+      readarray -t volumes < <(get_mounted_shares)
+      for share in "${volumes[@]}"
+      do
+        umount "${BASE_DIR}"/"${share}"
+      done
+    fi
+    ;;
+  list)
+    get_mounted_shares
+    ;;
+  shares)
+    list_available_shares
+    ;;
+  config)
+    show_config
+    ;;
+  *) #Catch empty or not listed command
+    if [ -z "${1}" ]; then
+      echo "Error: command not supplied, try again."
+    else
+      echo "Error: invalid command \"${1}\""
+      echo ""
+      usage
+    fi
+    ;;
+  esac
+  exit
+}
+
+show_config() {
+    cat << EOF
+Script name: ${SCRIPT_NAME}
+Synology name: ${SYNO_ID}
+Mount point base dir: ${BASE_DIR}
+Credentials file location: ${CREDS_FILEPATH}
+EOF
+}
+
+usage() {
+  cat << EOF
+Usage: ${SCRIPT_NAME} [COMMAND] [OPTIONs]...
+Mount or dismount Synology SMB Shares.
+
+COMMAND:
+  mount                        Mount the specified volume
+  umount                       Unmount the specified volume
+  shares                       List available shares
+  list                         List mounted shares
+
+OPTIONS:
+  -v|--volume <VOLUME NAME>    The Synology volume name
+
+FLAGS:
+  -a|-all                      Apply to all shares. Only works with unmount command
+
+EXAMPLES:
+The following invocation mounts the volume "Archive":
+  $> ${SCRIPT_NAME} mount \\
+      -v Archive 
+EOF
+}
+
+parse_args() {
+  # shellcheck disable=SC2064
+  trap "$(shopt -p nocasematch)" RETURN
+  shopt -s nocasematch
+
+  while [[ $# != 0 ]]; do
+    case "${1}" in
+    -v | --volume)
+      arg_required "${@}"
+      VOLUME="${2}"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit
+      ;;
+    -a | -all)
+      ALL=1
+      shift 1
+      ;;
+    --* | -*=)
+      echo "Error: unsupported flag ${1}" >&2
+      exit 1
+      ;;
+    *)
+      PARAMS+=("${1}")
+      shift
+      ;;
+    esac
+  done
+}
+
+main "${@}"

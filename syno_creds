@@ -1,0 +1,4 @@
+SYNO_USER=""
+SYNO_PW="<your synology user password"
+BASE_DIR="<directory where the shares will be mounted>"
+SYNO_ID="<hostname or IP of your Synology server>"
